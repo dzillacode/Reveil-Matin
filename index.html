@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Réveil</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Réveil">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#000000">
+<style>
+/* =========================================================
+   RÉVEIL — iPad mini 2 (iOS 12 / Safari 12)
+   Palette : uniquement des rouges sur noir pur.
+   ========================================================= */
+:root{
+  --r1:#ff2a1f;      /* rouge principal : l'heure */
+  --r2:#b3150d;      /* rouge moyen : infos secondaires */
+  --r3:#4a0805;      /* rouge sombre : séparateurs, inactifs */
+  --r4:#1e0302;      /* rouge quasi noir : lignes discrètes */
+  --glow:0 0 24px rgba(255,42,31,.30);
+}
+/* Mode nuit : tout est tamisé (sauf quand on touche l'écran = .peek) */
+body.night:not(.peek){
+  --r1:#5e0a06; --r2:#3c0704; --r3:#250302; --r4:#140201; --glow:none;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:rgba(0,0,0,0)}
+html,body{height:100%;background:#000;overflow:hidden}
+body{
+  color:var(--r1);
+  font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  -webkit-user-select:none;user-select:none;
+  -webkit-text-size-adjust:100%;
+  touch-action:manipulation;
+  cursor:default;
+}
+button{-webkit-appearance:none;appearance:none;font:inherit;background:none;border:0;color:inherit;cursor:pointer}
+.thin{font-family:"HelveticaNeue-UltraLight","Helvetica Neue",Helvetica,sans-serif;font-weight:100}
+.num{font-variant-numeric:tabular-nums;-webkit-font-feature-settings:"tnum";font-feature-settings:"tnum"}
+.dim{color:var(--r2)}
+.off{display:none!important}
+
+/* ---------- Cadran principal ---------- */
+#face{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  -webkit-transition:-webkit-transform 3s ease;transition:transform 3s ease;
+}
+#clock{
+  font-size:33vw;line-height:.86;letter-spacing:-.01em;white-space:nowrap;
+  text-shadow:var(--glow);color:var(--r1);
+}
+#colon{position:relative;top:-.07em;margin:0 -.02em;-webkit-animation:soft 2s ease-in-out infinite;animation:soft 2s ease-in-out infinite}
+#ss{font-size:.16em;vertical-align:top;margin-left:.2em;color:var(--r2);letter-spacing:.05em;text-shadow:none}
+#date{margin-top:3vh;font-size:2.3vw;letter-spacing:.42em;text-transform:uppercase;color:var(--r2);padding-left:.42em}
+#wx{margin-top:4.5vh;display:flex;align-items:center;font-size:1.65vw;letter-spacing:.14em;color:var(--r2);text-transform:uppercase;min-height:5vw}
+#wx svg{width:3.4vw;height:3.4vw;display:block}
+#wx .now{display:flex;align-items:center;color:var(--r1)}
+#wx .now .t{font-size:2.9vw;margin-left:1vw;letter-spacing:0}
+#wx .col{display:flex;flex-direction:column;line-height:1.75}
+#wx .sep{width:1px;height:3.6vw;background:var(--r3);margin:0 2.2vw}
+#wx .fc{display:flex}
+#wx .hr{display:flex;flex-direction:column;align-items:center;margin:0 1vw;font-size:.85em;line-height:1.3}
+#wx .hr svg{width:2.4vw;height:2.4vw;margin:.3vw 0}
+body.night:not(.peek) #wx .fc, body.night:not(.peek) #wx .fcs{display:none}
+#next{margin-top:4.5vh;font-size:1.35vw;letter-spacing:.38em;color:var(--r2);text-transform:uppercase;padding-left:.38em}
+#next b{font-weight:400;color:var(--r1)}
+
+@media (orientation:portrait){
+  #clock{font-size:31vw}
+  #date{font-size:3.1vw}
+  #wx{font-size:2.3vw;flex-wrap:wrap;justify-content:center}
+  #wx svg{width:5vw;height:5vw}
+  #wx .now .t{font-size:4.2vw}
+  #wx .sep{height:5vw}
+  #wx .hr svg{width:3.4vw;height:3.4vw}
+  #next{font-size:2vw}
+}
+
+/* ---------- Barre de commandes (apparaît au toucher) ---------- */
+#bar{
+  position:fixed;left:0;right:0;bottom:0;padding:0 3vw 4vh;
+  display:flex;justify-content:center;flex-wrap:wrap;
+  opacity:0;pointer-events:none;-webkit-transition:opacity .2s;transition:opacity .2s;z-index:10;
+}
+#bar.on{opacity:1;pointer-events:auto}
+.btn{
+  display:inline-block;border:1px solid var(--r2);color:var(--r1);background:#000;
+  font-size:14px;letter-spacing:.28em;text-transform:uppercase;padding:15px 24px 15px 28px;
+  border-radius:2px;margin:6px;white-space:nowrap;
+}
+.btn.solid{background:var(--r1);border-color:var(--r1);color:#000}
+.btn.ghost{border-color:var(--r3);color:var(--r2)}
+.btn:active{opacity:.6}
+
+/* ---------- Panneau de réglages ---------- */
+#panel{
+  position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:20;
+  display:flex;flex-direction:column;
+  -webkit-transition:opacity .2s,-webkit-transform .2s;transition:opacity .2s,transform .2s;
+}
+#panel.closed{opacity:0;pointer-events:none;-webkit-transform:translateY(14px);transform:translateY(14px)}
+#tabs{display:flex;border-bottom:1px solid var(--r3);padding:0 3vw;flex-shrink:0}
+.tab{flex:1;padding:24px 0 22px;text-align:center;letter-spacing:.32em;font-size:13px;color:var(--r2);border-bottom:2px solid transparent;text-transform:uppercase}
+.tab.on{color:var(--r1);border-bottom-color:var(--r1)}
+.tab.x{flex:0 0 80px;font-size:22px;letter-spacing:0}
+#pbody{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 5vw 80px}
+h3{font-weight:400;font-size:11px;letter-spacing:.4em;color:var(--r2);margin:34px 0 10px;text-transform:uppercase}
+.note{font-size:12px;letter-spacing:.12em;color:var(--r2);line-height:1.7;margin:8px 0}
+.row{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--r4);padding:14px 0;min-height:60px}
+.row .lbl{font-size:15px;letter-spacing:.12em}
+.row .lbl small{display:block;font-size:11px;letter-spacing:.2em;color:var(--r2);margin-top:5px;text-transform:uppercase}
+.al{flex:1}
+.al .t{font-size:60px;line-height:1}
+.al .m{font-size:11px;letter-spacing:.24em;color:var(--r2);margin-top:6px;text-transform:uppercase}
+.row.dis .al{opacity:.4}
+
+/* Interrupteur */
+.sw{position:relative;width:60px;height:32px;border:1px solid var(--r3);border-radius:16px;flex-shrink:0}
+.sw i{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:12px;background:var(--r3);-webkit-transition:-webkit-transform .2s;transition:transform .2s}
+.sw.on{border-color:var(--r1)}
+.sw.on i{background:var(--r1);-webkit-transform:translateX(28px);transform:translateX(28px)}
+
+/* Champs */
+input,select{
+  -webkit-appearance:none;appearance:none;background:#000;color:var(--r1);
+  border:1px solid var(--r3);border-radius:2px;font:inherit;font-size:18px;padding:13px 15px;width:100%;
+  -webkit-user-select:text;user-select:text;outline:none;
+}
+input:focus{border-color:var(--r1)}
+input::-webkit-input-placeholder{color:var(--r3)}
+input::placeholder{color:var(--r3)}
+input[type=time]{font-size:56px;font-weight:100;font-family:"HelveticaNeue-UltraLight","Helvetica Neue",sans-serif;width:auto;padding:6px 18px;min-width:220px}
+.small-in{width:auto;min-width:130px;font-size:18px!important;padding:10px 14px!important;min-height:0}
+select{width:auto;min-width:120px;font-size:16px;padding:10px 14px}
+
+.days{display:flex;flex-wrap:wrap}
+.day{width:52px;height:52px;border:1px solid var(--r3);border-radius:26px;display:flex;align-items:center;justify-content:center;margin:0 10px 10px 0;color:var(--r2);font-size:15px}
+.day.on{background:var(--r1);border-color:var(--r1);color:#000}
+
+/* Stations */
+.st{display:flex;align-items:center;padding:11px 0;border-bottom:1px solid var(--r4)}
+.st .n{flex:1;font-size:16px;letter-spacing:.06em;overflow:hidden}
+.st .n small{display:block;color:var(--r2);font-size:10px;letter-spacing:.2em;margin-top:4px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st.dis{opacity:.35}
+.ib{min-width:50px;height:44px;border:1px solid var(--r3);margin-left:8px;display:flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:.2em;padding:0 12px;text-transform:uppercase;color:var(--r1)}
+.ib.on{background:var(--r1);color:#000;border-color:var(--r1)}
+.grp{font-size:10px;letter-spacing:.4em;color:var(--r3);margin:18px 0 2px}
+.banner{border:1px solid var(--r1);padding:14px 16px;margin-top:22px;font-size:12px;letter-spacing:.3em;text-transform:uppercase}
+.flex{display:flex;align-items:center}
+.flex > input{flex:1}
+
+/* ---------- Écran de sonnerie ---------- */
+#ring{position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:30;display:flex;flex-direction:column}
+#ring .top{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#rTime{font-size:22vw;line-height:.9;text-shadow:var(--glow);-webkit-animation:soft 1.6s ease-in-out infinite;animation:soft 1.6s ease-in-out infinite}
+#rLabel{font-size:2.2vw;letter-spacing:.45em;text-transform:uppercase;margin-top:3vh;padding-left:.45em}
+#rSt{font-size:1.5vw;letter-spacing:.3em;color:var(--r2);text-transform:uppercase;margin-top:2vh}
+#ring .bt{display:flex;height:36vh;border-top:1px solid var(--r3)}
+#ring .bt button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:3.6vw;letter-spacing:.45em;padding-left:.45em}
+#ring .bt small{font-size:.32em;letter-spacing:.3em;margin-top:1.4vh;color:var(--r2)}
+#ring .snz{border-right:1px solid var(--r3);color:var(--r1)}
+#ring .stp{background:var(--r1);color:#000}
+#ring .stp small{color:#000;opacity:.6}
+@media (orientation:portrait){#rLabel{font-size:3vw}#rSt{font-size:2.2vw}#ring .bt button{font-size:5vw}}
+
+/* ---------- Écran de déverrouillage audio ---------- */
+#unlock{position:fixed;top:0;left:0;width:100%;height:100%;z-index:50;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+#unlock .big{font-size:2.2vw;letter-spacing:.45em;border:1px solid var(--r1);padding:3.4vh 4vw 3.4vh calc(4vw + .45em);-webkit-animation:soft 2.4s ease-in-out infinite;animation:soft 2.4s ease-in-out infinite}
+#unlock p{color:var(--r2);margin-top:5vh;font-size:12px;letter-spacing:.24em;line-height:2;max-width:70%;text-transform:uppercase}
+@media (orientation:portrait){#unlock .big{font-size:3.4vw}}
+
+#warn{position:fixed;top:0;left:0;right:0;text-align:center;padding:12px;font-size:12px;letter-spacing:.3em;background:var(--r1);color:#000;z-index:40;-webkit-animation:soft 1s ease-in-out infinite;animation:soft 1s ease-in-out infinite;text-transform:uppercase}
+#toast{position:fixed;bottom:14vh;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);border:1px solid var(--r2);padding:13px 22px;font-size:12px;letter-spacing:.25em;background:#000;opacity:0;-webkit-transition:opacity .2s;transition:opacity .2s;z-index:60;pointer-events:none;text-transform:uppercase;white-space:nowrap}
+#toast.on{opacity:1}
+
+@-webkit-keyframes soft{0%,100%{opacity:1}50%{opacity:.28}}
+@keyframes soft{0%,100%{opacity:1}50%{opacity:.28}}
+</style>
+</head>
+<body>
+
+<div id="face">
+  <div id="clock" class="thin num"><span id="hh">--</span><span id="colon">:</span><span id="mm">--</span><span id="ss"></span></div>
+  <div id="date"></div>
+  <div id="wx"></div>
+  <div id="next"></div>
+</div>
+
+<div id="bar"></div>
+<div id="warn" class="off"></div>
+
+<div id="ring" class="off">
+  <div class="top">
+    <div id="rTime" class="thin num">--:--</div>
+    <div id="rLabel">Réveil</div>
+    <div id="rSt"></div>
+  </div>
+  <div class="bt">
+    <button class="snz" data-act="snooze">SNOOZE<small id="rSnz">9 MIN</small></button>
+    <button class="stp" data-act="stop">STOP<small>ARRÊTER</small></button>
+  </div>
+</div>
+
+<div id="panel" class="closed">
+  <div id="tabs"></div>
+  <div id="pbody"></div>
+</div>
+
+<div id="unlock">
+  <div class="big">TOUCHER POUR ACTIVER</div>
+  <p>Le son doit être activé d'un toucher à chaque ouverture de l'application.<br>Laissez ensuite l'iPad sur cet écran, branché.</p>
+</div>
+
+<div id="toast"></div>
+
+<audio id="aDirect" playsinline webkit-playsinline preload="none"></audio>
+<audio id="aFade" playsinline webkit-playsinline preload="none"></audio>
+
+<script>
+/* =========================================================
+   JavaScript compatible Safari 12 : pas de ?. ni ??,
+   pas de champs privés, pas d'AbortController.
+   ========================================================= */
+(function () {
+'use strict';
+
+function $(id) { return document.getElementById(id); }
+var DAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+var DAYS_S = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+var MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+var WEEK = [1,2,3,4,5,6,0];               // ordre d'affichage lundi → dimanche
+var WEEK_L = ['L','M','M','J','V','S','D'];
+var PAGE_HTTPS = location.protocol === 'https:';
+var KEY = 'reveil.v1';
+
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+function hhmm(t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function norm(s) {
+  s = String(s || '').toLowerCase();
+  try { s = s.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) {}
+  return s.replace(/[^a-z0-9]/g, '');
+}
+function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+/* fetch JSON avec délai max (pas d'AbortController sur iOS 12) */
+function getJSON(url, ms) {
+  return new Promise(function (resolve, reject) {
+    var done = false;
+    var t = setTimeout(function () { if (!done) { done = true; reject(new Error('délai dépassé')); } }, ms || 12000);
+    fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      if (!done) { done = true; clearTimeout(t); resolve(j); }
+    }, function (e) {
+      if (!done) { done = true; clearTimeout(t); reject(e); }
+    });
+  });
+}
+
+/* ---------------- Réglages persistants ---------------- */
+var DEF = {
+  alarms: [{ id: 'a1', h: 7, m: 0, label: 'Réveil', days: [1,2,3,4,5], on: true, station: null }],
+  snooze: 9,
+  autoNight: true, nightStart: '22:30', nightEnd: '06:30',
+  seconds: false,
+  fade: true, fadeSec: 60,
+  city: { name: 'Bruxelles', lat: 50.8503, lon: 4.3517 },
+  defStation: null
+};
+var S = (function () {
+  var s = lsGet(KEY);
+  if (s && s.alarms) { for (var k in DEF) if (!(k in s)) s[k] = DEF[k]; return s; }
+  return JSON.parse(JSON.stringify(DEF));
+})();
+function save() { lsSet(KEY, S); }
+
+/* ---------------- Sons générés (WAV en data URI) ---------------- */
+function makeWav(kind) {
+  var rate = 11025, sec = kind === 'beep' ? 2 : 1, n = rate * sec;
+  var bytes = new Uint8Array(44 + n * 2), v = new DataView(bytes.buffer);
+  function ws(o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+  ws(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  ws(36, 'data'); v.setUint32(40, n * 2, true);
+  for (var i = 0; i < n; i++) {
+    var s = 0;
+    if (kind === 'beep') {
+      var t = i / rate;
+      // bip-bip-bip puis silence, avec attaque/relâchement doux
+      var segs = [[0, .16], [.28, .44], [.56, .72]];
+      for (var j = 0; j < segs.length; j++) {
+        if (t >= segs[j][0] && t < segs[j][1]) {
+          var a = Math.min(1, (t - segs[j][0]) / .01, (segs[j][1] - t) / .01);
+          s = a * .55 * (Math.sin(2 * Math.PI * 880 * t) + .3 * Math.sin(2 * Math.PI * 1760 * t));
+        }
+      }
+    }
+    v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, s)) * 32767, true);
+  }
+  var bin = '', CH = 8192;
+  for (var k = 0; k < bytes.length; k += CH) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + CH));
+  return 'data:audio/wav;base64,' + btoa(bin);
+}
+var SILENT = makeWav('silence');
+var BEEP = makeWav('beep');
+
+/* ---------------- Moteur audio ----------------
+   elD : lecture directe (toujours fiable, volume plein — iOS ignore audio.volume)
+   elF : passe par la Web Audio API pour la montée progressive (si le flux autorise CORS)
+*/
+var AC = null, fadeGain = null, analyser = null, unlocked = false;
+var elD = $('aDirect'), elF = $('aFade');
+var R = { url: null, stName: null, mode: null, started: false, ringing: false,
+          alarm: null, watchdog: 0, stallT: 0, silT: 0, retry: 0, ringStart: 0 };
+var sleepAt = 0, pendingAt = 0, pendingAlarm = null;
+
+function safePlay(el) { try { var p = el.play(); if (p && p.catch) p.catch(function () {}); return p; } catch (e) { return null; } }
+
+function idle(el) {
+  el._stream = false;
+  if (el === elD) { el.loop = true; el.src = SILENT; safePlay(el); }
+  else { el.loop = false; el.src = SILENT; try { el.pause(); } catch (e) {} }
+}
+
+function unlockAudio() {
+  try {
+    var C = window.AudioContext || window.webkitAudioContext;
+    if (C && !AC) {
+      AC = new C();
+      var b = AC.createBuffer(1, 1, 22050), src = AC.createBufferSource();
+      src.buffer = b; src.connect(AC.destination);
+      if (src.start) src.start(0); else src.noteOn(0);
+      try {
+        elF.crossOrigin = 'anonymous';
+        var me = AC.createMediaElementSource(elF);
+        analyser = AC.createAnalyser(); analyser.fftSize = 512;
+        fadeGain = AC.createGain();
+        me.connect(analyser); analyser.connect(fadeGain); fadeGain.connect(AC.destination);
+      } catch (e) { fadeGain = null; analyser = null; }
+    }
+    if (AC && AC.resume) AC.resume();
+  } catch (e) {}
+  // Déverrouille les deux éléments <audio> pendant le geste
+  elD.loop = true; elD.src = SILENT; safePlay(elD);
+  elF.src = SILENT;
+  var p = safePlay(elF);
+  var after = function () { try { elF.pause(); } catch (e) {} safePlay(elD); };
+  if (p && p.then) p.then(after, after); else setTimeout(after, 300);
+  unlocked = true;
+}
+
+function resumeAudio() {
+  if (!unlocked) return;
+  if (AC && AC.state !== 'running' && AC.resume) { try { AC.resume(); } catch (e) {} }
+  if (!R.url && R.mode !== 'beep' && elD.paused) safePlay(elD);
+}
+
+function clearTimers() {
+  clearTimeout(R.watchdog); clearTimeout(R.stallT); clearTimeout(R.silT); clearInterval(R.retry);
+}
+
+function stopAudio() {
+  clearTimers();
+  R.url = null; R.stName = null; R.mode = null; R.started = false;
+  idle(elF); idle(elD);
+  if (fadeGain && AC) { var t = AC.currentTime; fadeGain.gain.cancelScheduledValues(t); fadeGain.gain.setValueAtTime(1, t); }
+  sleepAt = 0;
+  refreshUI();
+}
+
+function playStream(st, opts) {
+  opts = opts || {};
+  clearTimers();
+  R.url = st.url; R.stName = st.name || 'Radio';
+  var canFade = opts.fade && fadeGain && AC && AC.state === 'running' && !/\.m3u8(\?|$)/i.test(st.url);
+  playVia(canFade ? elF : elD, canFade);
+}
+
+function playVia(el, fade) {
+  clearTimeout(R.watchdog); clearTimeout(R.stallT); clearTimeout(R.silT);
+  R.mode = fade ? 'fade' : 'direct'; R.started = false;
+  var other = el === elD ? elF : elD;
+  idle(other);
+  el._stream = true; el.loop = false; el.src = R.url;
+  if (fade) {
+    var t = AC.currentTime, g = fadeGain.gain;
+    g.cancelScheduledValues(t); g.setValueAtTime(0.04, t); g.linearRampToValueAtTime(1, t + S.fadeSec);
+  }
+  try {
+    var p = el.play();
+    if (p && p.catch) p.catch(function () { if (el._stream && !R.started) onStreamFail(el); });
+  } catch (e) { onStreamFail(el); return; }
+  R.watchdog = setTimeout(function () { if (el._stream && !R.started) onStreamFail(el); }, 15000);
+  refreshUI();
+}
+
+function onStreamFail(el) {
+  if (!el._stream) return;
+  var wasFade = el === elF;
+  clearTimeout(R.watchdog); clearTimeout(R.stallT); clearTimeout(R.silT);
+  el._stream = false;
+  if (!R.url) { idle(el); return; }
+  if (wasFade) { playVia(elD, false); return; }          // repli : lecture directe sans montée
+  if (R.ringing) { startBeep(); return; }                // réveil : sonnerie de secours
+  idle(el);
+  toast('Flux radio indisponible');
+  R.url = null; R.mode = null; sleepAt = 0;
+  refreshUI();
+}
+
+function startBeep() {
+  clearTimeout(R.watchdog); clearTimeout(R.stallT); clearTimeout(R.silT); clearInterval(R.retry);
+  idle(elF);
+  R.mode = 'beep';
+  elD._stream = false; elD.loop = true; elD.src = BEEP; safePlay(elD);
+  if (R.url) {
+    // retente la radio toutes les 90 s tant que l'alarme sonne
+    R.retry = setInterval(function () { if (R.ringing && R.mode === 'beep' && R.url) playVia(elD, false); }, 90000);
+  }
+  refreshUI();
+}
+
+/* Détecte un flux muet via Web Audio (CORS absent ou bug iOS) → bascule en lecture directe */
+function scheduleSilenceCheck() {
+  if (!analyser) return;
+  clearTimeout(R.silT);
+  var n = 0, data = new Uint8Array(analyser.fftSize);
+  var chk = function () {
+    if (!elF._stream) return;
+    analyser.getByteTimeDomainData(data);
+    for (var i = 0; i < data.length; i++) if (Math.abs(data[i] - 128) > 1) return; // il y a du son
+    if (++n < 16) R.silT = setTimeout(chk, 250);
+    else onStreamFail(elF);
+  };
+  R.silT = setTimeout(chk, 3000);
+}
+
+[elD, elF].forEach(function (el) {
+  el.addEventListener('playing', function () {
+    if (!el._stream) return;
+    R.started = true; clearTimeout(R.watchdog); clearTimeout(R.stallT);
+    if (el === elF) scheduleSilenceCheck();
+    refreshUI();
+  });
+  el.addEventListener('error', function () { if (el._stream) onStreamFail(el); });
+  el.addEventListener('ended', function () { if (el._stream) onStreamFail(el); });
+  var stall = function () {
+    if (!el._stream || !R.started) return;
+    clearTimeout(R.stallT);
+    R.stallT = setTimeout(function () { if (el._stream && el.paused === false && el.readyState < 3) onStreamFail(el); }, 20000);
+  };
+  el.addEventListener('waiting', stall);
+  el.addEventListener('stalled', stall);
+});
+
+/* ---------------- Alarmes ---------------- */
+function nextOcc(a, from) {
+  for (var d = 0; d < 8; d++) {
+    var dt = new Date(from); dt.setDate(dt.getDate() + d); dt.setHours(a.h, a.m, 0, 0);
+    if (dt.getTime() <= from) continue;
+    if (!a.days.length || a.days.indexOf(dt.getDay()) >= 0) return dt.getTime();
+  }
+  return null;
+}
+function nextAlarm() {
+  var now = Date.now(), best = null, ba = null;
+  S.alarms.forEach(function (a) {
+    if (!a.on) return;
+    var t = nextOcc(a, now);
+    if (t && (!best || t < best)) { best = t; ba = a; }
+  });
+  if (pendingAt && (!best || pendingAt < best)) { best = pendingAt; ba = pendingAlarm; }
+  return best ? { t: best, a: ba } : null;
+}
+
+var lastTick = Date.now();
+function checkAlarms(from, to) {
+  if (R.ringing) return;
+  if (pendingAt && to >= pendingAt) { var pa = pendingAlarm; pendingAt = 0; pendingAlarm = null; ring(pa); return; }
+  for (var i = 0; i < S.alarms.length; i++) {
+    var a = S.alarms[i];
+    if (!a.on) continue;
+    for (var d = -1; d <= 0; d++) {
+      var dt = new Date(to); dt.setDate(dt.getDate() + d); dt.setHours(a.h, a.m, 0, 0);
+      var t = dt.getTime();
+      if (t > from && t <= to && (!a.days.length || a.days.indexOf(dt.getDay()) >= 0)) {
+        if (!a.days.length) { a.on = false; save(); }
+        ring(a); return;
+      }
+    }
+  }
+}
+
+function ring(a) {
+  if (R.ringing) return;
+  if (!a) a = { label: 'Réveil', station: null };
+  R.ringing = true; R.alarm = a; R.ringStart = Date.now();
+  closePanel(); hideBar();
+  $('ring').classList.remove('off');
+  $('rLabel').textContent = a.label || 'Réveil';
+  $('rSnz').textContent = S.snooze + ' MIN';
+  $('rTime').textContent = hhmm(Date.now());
+  resumeAudio();
+  var st = a.station || S.defStation;
+  if (st && st.url) playStream(st, { fade: S.fade });
+  else { R.url = null; startBeep(); }
+  updNight();
+}
+function stopRing() {
+  R.ringing = false; R.alarm = null;
+  $('ring').classList.add('off');
+  stopAudio();
+  updNight(); renderNext();
+}
+function snooze() {
+  var a = R.alarm;
+  stopRing();
+  pendingAt = Date.now() + S.snooze * 60000;
+  pendingAlarm = { label: (a && a.label ? a.label : 'Réveil'), station: a ? a.station : null };
+  renderNext();
+  toast('Snooze ' + S.snooze + ' min');
+}
+
+/* ---------------- Météo (Open-Meteo, sans clé) ---------------- */
+var WX = lsGet('reveil.wx'), wxLoading = false;
+var WMO = {0:'Ciel dégagé',1:'Plutôt dégagé',2:'Partiellement nuageux',3:'Couvert',45:'Brouillard',48:'Brouillard givrant',
+  51:'Bruine légère',53:'Bruine',55:'Bruine dense',56:'Bruine verglaçante',57:'Bruine verglaçante',
+  61:'Pluie faible',63:'Pluie',65:'Forte pluie',66:'Pluie verglaçante',67:'Pluie verglaçante',
+  71:'Neige faible',73:'Neige',75:'Forte neige',77:'Grains de neige',80:'Averses',81:'Averses',82:'Fortes averses',
+  85:'Averses de neige',86:'Averses de neige',95:'Orage',96:'Orage et grêle',99:'Orage et grêle'};
+
+var CLOUD = '<path d="M7.5 18.5h9.5a4 4 0 0 0 .6-7.95A5.6 5.6 0 0 0 6.9 9.4 4.6 4.6 0 0 0 7.5 18.5z"/>';
+var CLOUD_HI = '<path d="M7.5 14.5h9.5a3.6 3.6 0 0 0 .55-7.15A5 5 0 0 0 7.9 6.2 4.2 4.2 0 0 0 7.5 14.5z"/>';
+function svg(inner) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+}
+function icon(code, isDay) {
+  var sun = '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>';
+  var moon = '<path d="M19.5 14.6A7.8 7.8 0 1 1 9.4 4.5a6.2 6.2 0 0 0 10.1 10.1z"/>';
+  if (code <= 1) return svg(isDay ? sun : moon);
+  if (code === 2) return svg((isDay
+      ? '<circle cx="8.5" cy="8.5" r="3"/><path d="M8.5 2.8v1.2M2.8 8.5h1.2M4.5 4.5l.8.8M12.5 4.5l-.8.8"/>'
+      : '<path d="M12 7.2A4.6 4.6 0 1 1 6.1 3.1a3.6 3.6 0 0 0 5.9 4.1z"/>') +
+      '<path d="M9.5 19.5h7.5a3.4 3.4 0 0 0 .5-6.75A4.7 4.7 0 0 0 8.8 12a3.8 3.8 0 0 0 .7 7.5z"/>');
+  if (code === 3) return svg(CLOUD);
+  if (code === 45 || code === 48) return svg('<path d="M4 9h16M3 13h18M5 17h14M8 21h8"/>');
+  if (code >= 95) return svg(CLOUD_HI + '<path d="M12.5 15.5l-2 3.5h3l-2 3.5"/>');
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86)
+    return svg(CLOUD_HI + '<path d="M8 18v.01M12 19.5v.01M16 18v.01M10 22v.01M14 22v.01" stroke-width="2"/>');
+  return svg(CLOUD_HI + '<path d="M8.5 17l-1 3M12.5 17l-1 3M16.5 17l-1 3"/>');
+}
+
+function fetchWx() {
+  if (wxLoading) return;
+  wxLoading = true;
+  var c = S.city;
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + c.lat + '&longitude=' + c.lon +
+    '&current=temperature_2m,weather_code,is_day' +
+    '&hourly=temperature_2m,precipitation_probability,weather_code,is_day' +
+    '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
+    '&timezone=Europe%2FBrussels&forecast_days=2';
+  getJSON(url, 15000).then(function (j) {
+    wxLoading = false;
+    if (!j || !j.current) throw new Error('réponse vide');
+    WX = { t: Date.now(), d: j, city: c.name };
+    lsSet('reveil.wx', WX);
+    renderWx();
+  }).catch(function () { wxLoading = false; renderWx(); });
+}
+
+function renderWx() {
+  var el = $('wx');
+  if (!WX || !WX.d || !WX.d.current) { el.innerHTML = '<span class="dim">Météo indisponible</span>'; return; }
+  try {
+    var j = WX.d, c = j.current, dl = j.daily, hr = j.hourly;
+    var h = '<div class="now">' + icon(c.weather_code, c.is_day) + '<span class="t thin num">' + Math.round(c.temperature_2m) + '°</span></div>';
+    h += '<div class="sep"></div><div class="col"><span>' + esc(WX.city || '') + ' · ' + (WMO[c.weather_code] || '') + '</span>' +
+         '<span class="num">↑ ' + Math.round(dl.temperature_2m_max[0]) + '°&nbsp;&nbsp;↓ ' + Math.round(dl.temperature_2m_min[0]) +
+         '°&nbsp;&nbsp;·&nbsp;&nbsp;Pluie ' + (dl.precipitation_probability_max[0] || 0) + '%</span></div>';
+    var d = new Date();
+    var key = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':00';
+    var idx = hr.time.indexOf(key);
+    if (idx >= 0 && idx + 3 < hr.time.length) {
+      h += '<div class="sep fcs"></div><div class="fc">';
+      for (var k = 1; k <= 3; k++) {
+        var q = idx + k;
+        h += '<div class="hr num"><span>' + hr.time[q].substr(11, 2) + 'h</span>' + icon(hr.weather_code[q], hr.is_day[q]) +
+             '<span>' + Math.round(hr.temperature_2m[q]) + '°</span></div>';
+      }
+      h += '</div>';
+    }
+    if (Date.now() - WX.t > 45 * 60000) h += '<div class="sep"></div><span class="num">Màj ' + hhmm(WX.t) + '</span>';
+    el.innerHTML = h;
+  } catch (e) { el.innerHTML = '<span class="dim">Météo indisponible</span>'; }
+}
+
+/* ---------------- Stations belges (Radio Browser) ---------------- */
+var MIRRORS = ['https://de1.api.radio-browser.info', 'https://de2.api.radio-browser.info',
+               'https://fi1.api.radio-browser.info', 'https://nl1.api.radio-browser.info'];
+var FAVS = [
+  { g: 'RTBF', n: ['La Première', 'VivaCité', 'Classic 21', 'Tipik', 'Musiq3'] },
+  { g: 'VRT', n: ['Radio 1', 'Radio 2', 'Studio Brussel', 'MNM', 'Klara'] },
+  { g: 'PRIVÉES', n: ['Bel RTL', 'Radio Contact', 'Nostalgie', 'NRJ', 'DH Radio', 'Qmusic', 'Joe'] }
+];
+var STATIONS = null, stLoading = false, stError = null;
+(function () { var c = lsGet('reveil.st'); if (c && c.list && Date.now() - c.t < 7 * 864e5) STATIONS = c.list; })();
+
+function fetchStations(force) {
+  if (stLoading || (STATIONS && !force)) return;
+  stLoading = true; stError = null;
+  var tryMirror = function (i) {
+    if (i >= MIRRORS.length) { stLoading = false; stError = 'Annuaire radio injoignable'; renderStList(); return; }
+    getJSON(MIRRORS[i] + '/json/stations/search?countrycode=BE&hidebroken=true&order=clickcount&reverse=true&limit=500', 15000)
+      .then(function (list) {
+        var out = [], seen = {};
+        list.forEach(function (s) {
+          var codec = String(s.codec || '').toUpperCase(), hls = s.hls == 1;
+          if (!(codec.indexOf('MP3') >= 0 || codec.indexOf('AAC') >= 0 || hls)) return;
+          var url = s.url_resolved || s.url;
+          if (!url || !s.name) return;
+          var k = norm(s.name) + '|' + url;
+          if (seen[k]) return; seen[k] = 1;
+          out.push({ name: String(s.name).trim(), url: url, https: /^https:/i.test(url),
+                     codec: hls ? 'HLS' : codec, br: s.bitrate || 0, votes: s.clickcount || 0, tags: s.tags || '' });
+        });
+        if (!out.length) throw new Error('vide');
+        STATIONS = out; stLoading = false; lsSet('reveil.st', { t: Date.now(), list: out });
+        renderStList();
+      })
+      .catch(function () { tryMirror(i + 1); });
+  };
+  tryMirror(0);
+}
+
+function playable(st) { return !(PAGE_HTTPS && !st.https); }
+function favMatch(name) {
+  var nf = norm(name), best = null, bs = -1e9;
+  (STATIONS || []).forEach(function (s) {
+    var full = norm(s.name), ns = full.replace(/^(rtbf|vrt)/, '').replace(/(rtbf|vrt)$/, ''), sc;
+    if (ns === nf) sc = 100; else if (ns.indexOf(nf) === 0) sc = 60; else if (ns.indexOf(nf) >= 0) sc = 40; else return;
+    sc -= Math.min(50, 2 * (ns.length - nf.length));
+    if (/(belgique|belgie|be)$/.test(ns)) sc += 15;
+    if (!playable(s)) sc -= 80;
+    if (s.https) sc += 2;
+    sc += Math.min(6, Math.log(1 + s.votes));
+    if (sc > bs) { bs = sc; best = s; }
+  });
+  return best;
+}
+
+/* ---------------- Mode nuit, prochaine alarme, rendu ---------------- */
+function toMin(s) { var p = String(s || '0:0').split(':'); return (+p[0]) * 60 + (+p[1] || 0); }
+function updNight() {
+  var b = document.body, night = false;
+  if (S.autoNight && !R.ringing) {
+    var d = new Date(), m = d.getHours() * 60 + d.getMinutes(), a = toMin(S.nightStart), e = toMin(S.nightEnd);
+    night = a <= e ? (m >= a && m < e) : (m >= a || m < e);
+    var n = nextAlarm();
+    if (n && n.t - Date.now() <= 5 * 60000) night = false;  // réveil dans moins de 5 min : on rallume
+  }
+  b.classList.toggle('night', night);
+}
+
+function renderNext() {
+  var n = nextAlarm(), el = $('next');
+  if (!n) { el.innerHTML = 'Aucune alarme'; return; }
+  var diff = Math.max(0, Math.round((n.t - Date.now()) / 60000)), h = Math.floor(diff / 60), m = diff % 60;
+  var when = diff < 60 ? m + ' min' : h + ' h ' + pad(m);
+  var d = new Date(n.t), day = '';
+  if (diff >= 24 * 60) day = DAYS_S[d.getDay()] + ' ';
+  else if (d.getDate() !== new Date().getDate()) day = '';
+  el.innerHTML = 'Réveil&nbsp;&nbsp;<b class="num">' + day + hhmm(n.t) + '</b>&nbsp;&nbsp;·&nbsp;&nbsp;dans <span class="num">' + when + '</span>';
+}
+
+var lastMin = -1;
+function pixelShift() {
+  var x = Math.round(Math.random() * 14 - 7), y = Math.round(Math.random() * 10 - 5);
+  var f = $('face'); f.style.webkitTransform = f.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+}
+function render() {
+  var d = new Date(), m = d.getMinutes();
+  if (m !== lastMin) {
+    lastMin = m;
+    $('hh').textContent = pad(d.getHours());
+    $('mm').textContent = pad(m);
+    $('date').textContent = DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()];
+    if (R.ringing) $('rTime').textContent = pad(d.getHours()) + ':' + pad(m);
+    pixelShift(); renderNext(); updNight(); renderWx();
+    if (!WX || Date.now() - WX.t > 30 * 60000) fetchWx();
+    if ($('bar').classList.contains('on')) renderBar();
+  }
+  $('ss').textContent = S.seconds ? pad(d.getSeconds()) : '';
+}
+
+var tickN = 0;
+function tick() {
+  var now = Date.now();
+  checkAlarms(Math.max(lastTick, now - 5 * 60000), now);
+  lastTick = now;
+  render();
+  if (sleepAt && now >= sleepAt && !R.ringing) { stopAudio(); toast('Radio arrêtée'); }
+  if (R.ringing && now - R.ringStart > 45 * 60000) stopRing();  // sécurité : 45 min max
+  if (++tickN % 10 === 0) checkAudioHealth();
+}
+
+function checkAudioHealth() {
+  if (!unlocked) return;
+  resumeAudio();
+  var bad = (AC && AC.state !== 'running') || (!R.url && R.mode !== 'beep' && elD.paused);
+  var w = $('warn');
+  if (bad) { w.textContent = 'Audio en pause — touchez l\'écran'; w.classList.remove('off'); }
+  else w.classList.add('off');
+}
+
+/* ---------------- Barre & toasts ---------------- */
+var barT = 0, peekT = 0, toastT = 0;
+function toast(msg) {
+  var t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove('on'); }, 2600);
+}
+function renderBar() {
+  var h = '<button class="btn" data-act="open" data-v="alarms">Alarmes</button>' +
+          '<button class="btn" data-act="open" data-v="radio">Radio</button>' +
+          '<button class="btn" data-act="open" data-v="settings">Réglages</button>';
+  if (R.url && !R.ringing) {
+    var lbl = sleepAt ? 'Arrêt dans ' + Math.max(1, Math.ceil((sleepAt - Date.now()) / 60000)) + ' min' : esc(R.stName || 'Radio');
+    h += '<button class="btn solid" data-act="stopradio">■&nbsp;&nbsp;' + lbl + '</button>';
+  }
+  $('bar').innerHTML = h;
+}
+function showBar() {
+  renderBar(); $('bar').classList.add('on'); peek();
+  clearTimeout(barT); barT = setTimeout(hideBar, 10000);
+}
+function hideBar() { $('bar').classList.remove('on'); }
+function peek() {
+  document.body.classList.add('peek');
+  clearTimeout(peekT); peekT = setTimeout(function () { document.body.classList.remove('peek'); }, 10000);
+}
+function refreshUI() {
+  if ($('bar').classList.contains('on')) renderBar();
+  if (R.ringing) {
+    $('rSt').textContent = R.mode === 'beep'
+      ? (R.url ? 'Radio indisponible · sonnerie de secours' : 'Sonnerie')
+      : '♪  ' + (R.stName || 'Radio') + (R.started ? '' : ' · connexion…');
+  }
+  if (P.open && P.view === 'radio') renderStList();
+}
+
+/* ---------------- Panneau ---------------- */
+var P = { open: false, view: 'alarms', draft: null, choose: false, q: '', cityRes: null };
+
+function openPanel(v) {
+  P.open = true; P.view = v || 'alarms'; P.choose = false;
+  hideBar(); document.body.classList.add('peek'); clearTimeout(peekT);
+  $('panel').classList.remove('closed');
+  renderPanel();
+  if (P.view === 'radio') fetchStations();
+}
+function closePanel() {
+  if (!P.open) return;
+  P.open = false; P.draft = null; P.choose = false;
+  $('panel').classList.add('closed');
+  try { document.activeElement.blur(); } catch (e) {}
+  peek(); renderNext(); updNight();
+}
+
+function renderTabs() {
+  var v = (P.view === 'edit') ? 'alarms' : P.view;
+  var t = function (id, l) { return '<button class="tab' + (v === id ? ' on' : '') + '" data-act="tab" data-v="' + id + '">' + l + '</button>'; };
+  $('tabs').innerHTML = t('alarms', 'Alarmes') + t('radio', 'Radio') + t('settings', 'Réglages') +
+                        '<button class="tab x" data-act="close">✕</button>';
+}
+
+function daysText(days) {
+  if (!days.length) return 'Une seule fois';
+  if (days.length === 7) return 'Tous les jours';
+  var s = days.slice().sort().join(',');
+  if (s === '1,2,3,4,5') return 'En semaine';
+  if (s === '0,6') return 'Le week-end';
+  return WEEK.filter(function (d) { return days.indexOf(d) >= 0; }).map(function (d) { return DAYS_S[d]; }).join(' ');
+}
+function stLabel(st) { return st && st.url ? st.name : (S.defStation ? 'Station par défaut' : 'Sonnerie'); }
+function sw(on, act, v) { return '<div class="sw' + (on ? ' on' : '') + '" data-act="' + act + '" data-v="' + (v || '') + '"><i></i></div>'; }
+
+function renderPanel() {
+  renderTabs();
+  var b = $('pbody'), h = '';
+  if (P.view === 'alarms') {
+    h += '<h3>Alarmes</h3>';
+    var list = S.alarms.slice().sort(function (a, c) { return (a.h * 60 + a.m) - (c.h * 60 + c.m); });
+    if (!list.length) h += '<p class="note">Aucune alarme.</p>';
+    list.forEach(function (a) {
+      h += '<div class="row' + (a.on ? '' : ' dis') + '"><div class="al" data-act="al-edit" data-v="' + a.id + '">' +
+           '<div class="t thin num">' + pad(a.h) + ':' + pad(a.m) + '</div>' +
+           '<div class="m">' + esc(a.label || 'Réveil') + ' · ' + daysText(a.days) + ' · ' + esc(stLabel(a.station)) + '</div></div>' +
+           sw(a.on, 'al-toggle', a.id) + '</div>';
+    });
+    h += '<div style="margin-top:26px"><button class="btn" data-act="al-new">+&nbsp;&nbsp;Nouvelle alarme</button></div>';
+  }
+  else if (P.view === 'edit') {
+    var d = P.draft;
+    h += '<h3>Heure</h3><input type="time" id="edTime" class="num" value="' + pad(d.h) + ':' + pad(d.m) + '">';
+    h += '<h3>Libellé</h3><input type="text" id="edLabel" maxlength="30" value="' + esc(d.label) + '" placeholder="Réveil">';
+    h += '<h3>Répétition</h3><div class="days">';
+    WEEK.forEach(function (wd, i) { h += '<button class="day' + (d.days.indexOf(wd) >= 0 ? ' on' : '') + '" data-act="ed-day" data-v="' + wd + '">' + WEEK_L[i] + '</button>'; });
+    h += '</div><p class="note">' + daysText(d.days) + '</p>';
+    h += '<h3>Réveil avec</h3><div class="row"><div class="lbl">' + esc(stLabel(d.station)) +
+         '<small>' + (d.station && d.station.url ? 'Radio' : (S.defStation ? esc(S.defStation.name) : 'Bip électronique')) + '</small></div>' +
+         '<button class="btn" data-act="ed-station">Choisir</button></div>';
+    h += '<div style="margin-top:30px"><button class="btn solid" data-act="ed-save">Enregistrer</button>' +
+         '<button class="btn ghost" data-act="ed-cancel">Annuler</button>' +
+         (d.isNew ? '' : '<button class="btn ghost" data-act="ed-del">Supprimer</button>') + '</div>';
+  }
+  else if (P.view === 'radio') {
+    if (P.choose) h += '<div class="banner">Choisir la station pour l\'alarme ' + pad(P.draft.h) + ':' + pad(P.draft.m) + '</div>' +
+                       '<div class="st"><div class="n">Sonnerie électronique<small>Sans radio</small></div>' +
+                       '<button class="ib" data-act="st-pick" data-url="" data-name="">Choisir</button></div>';
+    h += '<h3>Rechercher</h3><input type="search" id="q" placeholder="Nom de la station…" value="' + esc(P.q) + '">';
+    h += '<div id="stList"></div>';
+    h += '<h3>Adresse de flux manuelle</h3><div class="flex"><input type="url" id="manUrl" placeholder="https://…/stream.mp3" value="">' +
+         '<button class="ib" data-act="man-play">▶</button>' +
+         '<button class="ib" data-act="man-pick">' + (P.choose ? 'Choisir' : '★') + '</button></div>';
+    if (!P.choose) {
+      h += '<h3>S\'endormir en musique</h3><p class="note">Station par défaut (★) : ' + esc(S.defStation ? S.defStation.name : 'aucune — touchez ★ sur une station') + '</p>' +
+           '<div><button class="btn" data-act="sleep" data-v="15">15 min</button><button class="btn" data-act="sleep" data-v="30">30 min</button>' +
+           '<button class="btn" data-act="sleep" data-v="60">60 min</button></div>';
+    }
+    if (PAGE_HTTPS) h += '<p class="note" style="margin-top:24px">Page servie en HTTPS : les flux en HTTP simple sont grisés (bloqués par Safari).</p>';
+  }
+  else if (P.view === 'settings') {
+    h += '<h3>Météo</h3><div class="row"><div class="lbl">' + esc(S.city.name) + '<small>Ville actuelle</small></div></div>' +
+         '<input type="search" id="cityQ" placeholder="Rechercher une ville…" style="margin-top:12px"><div id="cityRes"></div>';
+    h += '<h3>Mode nuit</h3>' +
+         '<div class="row"><div class="lbl">Automatique<small>Rouge très sombre la nuit</small></div>' + sw(S.autoNight, 'set-toggle', 'autoNight') + '</div>' +
+         '<div class="row"><div class="lbl">Début</div><input type="time" class="small-in num" data-set="nightStart" value="' + S.nightStart + '"></div>' +
+         '<div class="row"><div class="lbl">Fin</div><input type="time" class="small-in num" data-set="nightEnd" value="' + S.nightEnd + '"></div>';
+    h += '<h3>Affichage</h3><div class="row"><div class="lbl">Afficher les secondes</div>' + sw(S.seconds, 'set-toggle', 'seconds') + '</div>';
+    h += '<h3>Sonnerie</h3>' +
+         '<div class="row"><div class="lbl">Durée du snooze</div><select data-set="snooze">' +
+           [5, 9, 10, 15, 20].map(function (n) { return '<option value="' + n + '"' + (S.snooze === n ? ' selected' : '') + '>' + n + ' min</option>'; }).join('') + '</select></div>' +
+         '<div class="row"><div class="lbl">Montée progressive du volume<small>Si la station le permet</small></div>' + sw(S.fade, 'set-toggle', 'fade') + '</div>' +
+         '<div class="row"><div class="lbl">Durée de la montée</div><select data-set="fadeSec">' +
+           [30, 60, 120].map(function (n) { return '<option value="' + n + '"' + (S.fadeSec === n ? ' selected' : '') + '>' + n + ' s</option>'; }).join('') + '</select></div>';
+    h += '<div style="margin-top:28px"><button class="btn" data-act="test">Tester l\'alarme dans 1 min</button>' +
+         '<button class="btn ghost" data-act="refresh">Actualiser météo et radios</button></div>';
+    h += '<h3>État</h3><p class="note">Audio : ' + (AC ? AC.state : 'non initialisé') + (fadeGain ? ' · montée dispo' : ' · montée indispo') +
+         '<br>Météo : ' + (WX ? 'mise à jour ' + hhmm(WX.t) : 'jamais') +
+         '<br>Radios : ' + (STATIONS ? STATIONS.length + ' stations belges' : 'non chargées') +
+         '<br>Connexion : ' + (PAGE_HTTPS ? 'HTTPS' : 'HTTP') +
+         '<br>Pensez à : Réglages iPad › Luminosité › Verrouillage auto › Jamais</p>';
+  }
+  b.innerHTML = h;
+  if (P.view === 'radio') renderStList();
+}
+
+function stRow(st) {
+  var ok = playable(st), on = R.url === st.url && !R.ringing;
+  var meta = [st.codec, st.br ? st.br + ' kbps' : '', st.https ? '' : 'http'].filter(Boolean).join(' · ');
+  var attrs = ' data-url="' + esc(st.url) + '" data-name="' + esc(st.name) + '"';
+  var h = '<div class="st' + (ok ? '' : ' dis') + '"><div class="n">' + esc(st.name) + '<small>' + esc(meta) + '</small></div>';
+  if (ok) {
+    h += '<button class="ib' + (on ? ' on' : '') + '" data-act="st-play"' + attrs + '>' + (on ? '■' : '▶') + '</button>';
+    if (P.choose) h += '<button class="ib" data-act="st-pick"' + attrs + '>Choisir</button>';
+    else h += '<button class="ib' + (S.defStation && S.defStation.url === st.url ? ' on' : '') + '" data-act="st-def"' + attrs + '>★</button>';
+  }
+  return h + '</div>';
+}
+
+function renderStList() {
+  var el = $('stList'); if (!el) return;
+  if (!STATIONS) {
+    el.innerHTML = stError
+      ? '<p class="note">' + esc(stError) + '</p><button class="btn" data-act="refresh">Réessayer</button>'
+      : '<p class="note">Chargement des stations belges…</p>';
+    return;
+  }
+  var h = '', q = norm(P.q);
+  if (!q) {
+    h += '<h3>Favoris belges</h3>';
+    FAVS.forEach(function (g) {
+      h += '<div class="grp">' + g.g + '</div>';
+      g.n.forEach(function (n) { var s = favMatch(n); if (s) h += stRow(s); });
+    });
+  }
+  var list = STATIONS.filter(function (s) { return !q || norm(s.name + ' ' + s.tags).indexOf(q) >= 0; });
+  h += '<h3>' + (q ? 'Résultats' : 'Toutes les stations') + ' (' + list.length + ')</h3>';
+  list.slice(0, 60).forEach(function (s) { h += stRow(s); });
+  if (list.length > 60) h += '<p class="note">Affinez la recherche pour voir plus de stations.</p>';
+  el.innerHTML = h;
+}
+
+function syncDraft() {
+  if (P.view !== 'edit' || !P.draft) return;
+  var t = $('edTime'), l = $('edLabel');
+  if (t && t.value) { var p = t.value.split(':'); P.draft.h = +p[0]; P.draft.m = +p[1]; }
+  if (l) P.draft.label = l.value;
+}
+
+var cityT = 0;
+function searchCity(q) {
+  clearTimeout(cityT);
+  if (q.length < 2) { $('cityRes').innerHTML = ''; return; }
+  cityT = setTimeout(function () {
+    getJSON('https://geocoding-api.open-meteo.com/v1/search?count=8&language=fr&format=json&name=' + encodeURIComponent(q), 10000)
+      .then(function (j) {
+        var r = (j && j.results) || [], el = $('cityRes'); if (!el) return;
+        r.sort(function (a, b) { return (b.country_code === 'BE') - (a.country_code === 'BE'); });
+        el.innerHTML = r.map(function (c) {
+          return '<div class="st"><div class="n">' + esc(c.name) + '<small>' + esc([c.admin1, c.country].filter(Boolean).join(' · ')) + '</small></div>' +
+                 '<button class="ib" data-act="city-pick" data-lat="' + c.latitude + '" data-lon="' + c.longitude + '" data-name="' + esc(c.name) + '">Choisir</button></div>';
+        }).join('') || '<p class="note">Aucun résultat</p>';
+      }).catch(function () { var el = $('cityRes'); if (el) el.innerHTML = '<p class="note">Recherche impossible (réseau)</p>'; });
+  }, 400);
+}
+
+/* ---------------- Actions ---------------- */
+function findAlarm(id) { for (var i = 0; i < S.alarms.length; i++) if (S.alarms[i].id === id) return S.alarms[i]; return null; }
+
+function act(name, el) {
+  var v = el.getAttribute('data-v');
+  var url = el.getAttribute('data-url'), sname = el.getAttribute('data-name');
+  switch (name) {
+    case 'open': openPanel(v); break;
+    case 'close': closePanel(); break;
+    case 'tab': syncDraft(); P.view = v; P.choose = false; P.draft = null; renderPanel(); if (v === 'radio') fetchStations(); break;
+    case 'stopradio': stopAudio(); hideBar(); break;
+    case 'snooze': snooze(); break;
+    case 'stop': stopRing(); break;
+
+    case 'al-toggle': var a = findAlarm(v); if (a) { a.on = !a.on; save(); renderPanel(); renderNext(); } break;
+    case 'al-new': P.draft = { id: 'a' + Date.now(), h: 7, m: 0, label: 'Réveil', days: [1,2,3,4,5], on: true, station: null, isNew: true }; P.view = 'edit'; renderPanel(); break;
+    case 'al-edit': var a2 = findAlarm(v); if (a2) { P.draft = JSON.parse(JSON.stringify(a2)); P.view = 'edit'; renderPanel(); } break;
+    case 'ed-day':
+      syncDraft(); var dd = +v, ix = P.draft.days.indexOf(dd);
+      if (ix >= 0) P.draft.days.splice(ix, 1); else P.draft.days.push(dd);
+      renderPanel(); break;
+    case 'ed-station': syncDraft(); P.view = 'radio'; P.choose = true; P.q = ''; renderPanel(); fetchStations(); break;
+    case 'ed-save':
+      syncDraft(); var d = P.draft; delete d.isNew; d.on = true;
+      var ex = findAlarm(d.id);
+      if (ex) { for (var k in d) ex[k] = d[k]; } else S.alarms.push(d);
+      save(); P.draft = null; P.view = 'alarms'; renderPanel(); renderNext();
+      var n = nextOcc(d, Date.now()); if (n) toast('Réveil dans ' + Math.floor((n - Date.now()) / 3600000) + ' h ' + pad(Math.floor((n - Date.now()) / 60000) % 60));
+      break;
+    case 'ed-cancel': P.draft = null; P.view = 'alarms'; renderPanel(); break;
+    case 'ed-del': S.alarms = S.alarms.filter(function (x) { return x.id !== P.draft.id; }); save(); P.draft = null; P.view = 'alarms'; renderPanel(); renderNext(); break;
+
+    case 'st-play':
+      if (R.ringing) break;
+      if (R.url === url) stopAudio(); else { sleepAt = 0; playStream({ url: url, name: sname }, {}); }
+      renderStList(); break;
+    case 'st-pick':
+      if (R.url && !R.ringing) stopAudio();
+      P.draft.station = url ? { url: url, name: sname } : null;
+      P.choose = false; P.view = 'edit'; renderPanel(); break;
+    case 'st-def':
+      S.defStation = (S.defStation && S.defStation.url === url) ? null : { url: url, name: sname };
+      save(); renderPanel(); break;
+    case 'man-play': case 'man-pick':
+      var mu = ($('manUrl').value || '').trim();
+      if (!/^https?:\/\//i.test(mu)) { toast('Adresse invalide'); break; }
+      if (PAGE_HTTPS && /^http:/i.test(mu)) { toast('HTTP bloqué en HTTPS'); break; }
+      var mst = { url: mu, name: 'Flux manuel' };
+      if (name === 'man-play') { if (!R.ringing) playStream(mst, {}); }
+      else if (P.choose) { P.draft.station = mst; P.choose = false; P.view = 'edit'; renderPanel(); }
+      else { S.defStation = mst; save(); renderPanel(); toast('Station par défaut enregistrée'); }
+      break;
+    case 'sleep':
+      if (!S.defStation) { toast('Choisissez d\'abord une station ★'); break; }
+      playStream(S.defStation, {}); sleepAt = Date.now() + (+v) * 60000; closePanel(); toast('Arrêt dans ' + v + ' min'); break;
+
+    case 'set-toggle': S[v] = !S[v]; save(); renderPanel(); updNight(); render(); break;
+    case 'city-pick':
+      S.city = { name: sname, lat: +el.getAttribute('data-lat'), lon: +el.getAttribute('data-lon') };
+      save(); WX = null; fetchWx(); renderPanel(); toast('Météo : ' + sname); break;
+    case 'test':
+      pendingAt = Date.now() + 60000;
+      pendingAlarm = { label: 'Test', station: S.defStation };
+      closePanel(); renderNext(); toast('Alarme de test dans 1 min'); break;
+    case 'refresh': WX = null; fetchWx(); STATIONS = null; fetchStations(true); renderPanel(); toast('Actualisation…'); break;
+  }
+}
+
+/* Délégation des événements */
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  while (t && t !== document.body && !(t.getAttribute && t.getAttribute('data-act'))) t = t.parentNode;
+  if (t && t !== document.body && t.getAttribute('data-act')) { act(t.getAttribute('data-act'), t); return; }
+  // toucher « vide » sur l'écran principal
+  if (!P.open && !R.ringing && unlocked) showBar();
+});
+document.addEventListener('touchend', resumeAudio, true);
+
+document.addEventListener('input', function (e) {
+  var id = e.target.id;
+  if (id === 'q') { P.q = e.target.value; clearTimeout(searchCity._q); searchCity._q = setTimeout(renderStList, 250); }
+  else if (id === 'cityQ') searchCity(e.target.value.trim());
+});
+document.addEventListener('change', function (e) {
+  var k = e.target.getAttribute && e.target.getAttribute('data-set');
+  if (!k) return;
+  var val = e.target.value;
+  if (k === 'snooze' || k === 'fadeSec') val = +val;
+  if ((k === 'nightStart' || k === 'nightEnd') && !val) return;
+  S[k] = val; save(); updNight();
+});
+
+$('unlock').addEventListener('click', function (e) {
+  e.stopPropagation();
+  unlockAudio();
+  $('unlock').classList.add('off');
+  fetchStations();
+  setTimeout(checkAudioHealth, 1500);
+});
+
+/* Resynchronisation au retour au premier plan */
+function resync() { resumeAudio(); lastMin = -1; tick(); if (!WX || Date.now() - WX.t > 30 * 60000) fetchWx(); }
+document.addEventListener('visibilitychange', function () { if (!document.hidden) resync(); });
+window.addEventListener('pageshow', resync);
+window.addEventListener('focus', resync);
+
+/* Icône d'écran d'accueil générée (rouge sur noir) */
+(function makeIcon() {
+  try {
+    var c = document.createElement('canvas'); c.width = c.height = 180;
+    var x = c.getContext('2d');
+    x.fillStyle = '#000'; x.fillRect(0, 0, 180, 180);
+    x.fillStyle = '#ff2a1f'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = '100 62px "HelveticaNeue-UltraLight","Helvetica Neue",Helvetica,sans-serif';
+    x.fillText('07:00', 90, 86);
+    x.fillStyle = '#b3150d'; x.font = '400 13px "Helvetica Neue",Helvetica,sans-serif';
+    x.fillText('R É V E I L', 90, 132);
+    var l = document.createElement('link'); l.rel = 'apple-touch-icon'; l.href = c.toDataURL('image/png');
+    document.head.appendChild(l);
+  } catch (e) {}
+})();
+
+/* Mise en cache hors ligne (uniquement en HTTPS ou localhost) */
+if ('serviceWorker' in navigator && (PAGE_HTTPS || location.hostname === 'localhost')) {
+  try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
+}
+
+/* Démarrage */
+renderWx(); render(); fetchWx();
+setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
