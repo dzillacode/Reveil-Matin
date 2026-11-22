@@ -33,8 +33,9 @@ body{
   -webkit-user-select:none;user-select:none;
   -webkit-text-size-adjust:100%;
   touch-action:manipulation;
-  cursor:default;
+  cursor:pointer; /* iOS : sans ça, les touchers sur des <div> n'envoient pas de « click » */
 }
+[data-act], #face, #bar, #panel, #ring{cursor:pointer}
 button{-webkit-appearance:none;appearance:none;font:inherit;background:none;border:0;color:inherit;cursor:pointer}
 .thin{font-family:"HelveticaNeue-UltraLight","Helvetica Neue",Helvetica,sans-serif;font-weight:100}
 .num{font-variant-numeric:tabular-nums;-webkit-font-feature-settings:"tnum";font-feature-settings:"tnum"}
@@ -1001,6 +1002,9 @@ document.addEventListener('click', function (e) {
   if (!P.open && !R.ringing && unlocked) showBar();
 });
 document.addEventListener('touchend', resumeAudio, true);
+/* Bug iOS Safari : un « click » délégué au document n'est pas émis quand on touche
+   un élément non cliquable. Un gestionnaire vide sur chaque zone règle le problème. */
+['face', 'bar', 'panel', 'ring', 'tabs', 'pbody'].forEach(function (id) { $(id).onclick = function () {}; });
 
 document.addEventListener('input', function (e) {
   var id = e.target.id;
