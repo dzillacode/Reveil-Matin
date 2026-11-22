@@ -211,7 +211,7 @@ select{width:auto;min-width:120px;font-size:16px;padding:10px 14px}
 
 <div id="unlock">
   <div class="big">TOUCHER POUR ACTIVER</div>
-  <p>Le son doit être activé d'un toucher à chaque ouverture de l'application.<br>Laissez ensuite l'iPad sur cet écran, branché.</p>
+  <p>Le son doit être activé d'un toucher à chaque ouverture de l'application.<br>Laissez ensuite l'iPad sur cet écran, branché.<br><br>Version 3</p>
 </div>
 
 <div id="toast"></div>
@@ -855,7 +855,7 @@ function renderPanel() {
            [30, 60, 120].map(function (n) { return '<option value="' + n + '"' + (S.fadeSec === n ? ' selected' : '') + '>' + n + ' s</option>'; }).join('') + '</select></div>';
     h += '<div style="margin-top:28px"><button class="btn" data-act="test">Tester l\'alarme dans 1 min</button>' +
          '<button class="btn ghost" data-act="refresh">Actualiser météo et radios</button></div>';
-    h += '<h3>État</h3><p class="note">Audio : ' + (AC ? AC.state : 'non initialisé') + (fadeGain ? ' · montée dispo' : ' · montée indispo') +
+    h += '<h3>État</h3><p class="note">Version 3<br>Audio : ' + (AC ? AC.state : 'non initialisé') + (fadeGain ? ' · montée dispo' : ' · montée indispo') +
          '<br>Météo : ' + (WX ? 'mise à jour ' + hhmm(WX.t) : 'jamais') +
          '<br>Radios : ' + (STATIONS ? STATIONS.length + ' stations belges' : 'non chargées') +
          '<br>Connexion : ' + (PAGE_HTTPS ? 'HTTPS' : 'HTTP') +
@@ -993,15 +993,40 @@ function act(name, el) {
   }
 }
 
-/* Délégation des événements */
-document.addEventListener('click', function (e) {
-  var t = e.target;
+/* Délégation des événements.
+   Sur iOS 12, le « click » n'est pas toujours émis : on traite donc nous-mêmes
+   les touchers (touchend) et on garde le click pour la souris. */
+function handleTap(target) {
+  var t = target;
   while (t && t !== document.body && !(t.getAttribute && t.getAttribute('data-act'))) t = t.parentNode;
-  if (t && t !== document.body && t.getAttribute('data-act')) { act(t.getAttribute('data-act'), t); return; }
+  if (t && t !== document.body && t.getAttribute && t.getAttribute('data-act')) { act(t.getAttribute('data-act'), t); return; }
+  if (!unlocked) { doUnlock(); return; }
   // toucher « vide » sur l'écran principal
-  if (!P.open && !R.ringing && unlocked) showBar();
+  if (!P.open && !R.ringing) showBar();
+}
+function isField(el) {
+  return el && /^(INPUT|SELECT|TEXTAREA|OPTION|LABEL)$/.test(el.tagName);
+}
+var touch = null, lastTouchTap = 0;
+document.addEventListener('touchstart', function (e) {
+  var p = e.changedTouches[0];
+  touch = { x: p.clientX, y: p.clientY, t: Date.now() };
+}, { passive: true });
+document.addEventListener('touchend', function (e) {
+  resumeAudio();
+  if (!touch) return;
+  var p = e.changedTouches[0], st = touch; touch = null;
+  if (Math.abs(p.clientX - st.x) > 12 || Math.abs(p.clientY - st.y) > 12 || Date.now() - st.t > 800) return; // défilement
+  if (isField(e.target)) return;      // laisser iOS ouvrir le clavier / la roue de l'heure
+  try { document.activeElement && isField(document.activeElement) && document.activeElement.blur(); } catch (er) {}
+  e.preventDefault();                 // empêche le click synthétique (pas de double action)
+  lastTouchTap = Date.now();
+  handleTap(e.target);
+}, { passive: false });
+document.addEventListener('click', function (e) {
+  if (Date.now() - lastTouchTap < 800) return;
+  handleTap(e.target);
 });
-document.addEventListener('touchend', resumeAudio, true);
 /* Bug iOS Safari : un « click » délégué au document n'est pas émis quand on touche
    un élément non cliquable. Un gestionnaire vide sur chaque zone règle le problème. */
 ['face', 'bar', 'panel', 'ring', 'tabs', 'pbody'].forEach(function (id) { $(id).onclick = function () {}; });
@@ -1020,13 +1045,13 @@ document.addEventListener('change', function (e) {
   S[k] = val; save(); updNight();
 });
 
-$('unlock').addEventListener('click', function (e) {
-  e.stopPropagation();
+function doUnlock() {
+  if (unlocked) return;
   unlockAudio();
   $('unlock').classList.add('off');
   fetchStations();
   setTimeout(checkAudioHealth, 1500);
-});
+}
 
 /* Resynchronisation au retour au premier plan */
 function resync() { resumeAudio(); lastMin = -1; tick(); if (!WX || Date.now() - WX.t > 30 * 60000) fetchWx(); }
